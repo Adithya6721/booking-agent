@@ -21,8 +21,18 @@ const buildFlightLinks = (fromCity, toCity, date, travelers, flight) => {
 };
 
 const buildTrainLinks = (fromCode, toCode, fromCity, toCity, date) => {
-  // date arrives as YYYY-MM-DD from the API
-  const [y, m, d] = date ? date.split('-') : ['','',''];
+  // date arrives as DD-MM-YYYY from the IRCTC API
+  // but let's handle both YYYY-MM-DD and DD-MM-YYYY to be completely safe
+  let y = '', m = '', d = '';
+  if (date) {
+    const parts = date.split('-');
+    if (parts[0].length === 4) {
+      [y, m, d] = parts; // YYYY-MM-DD
+    } else {
+      [d, m, y] = parts; // DD-MM-YYYY
+    }
+  }
+
   const mmtDate        = `${y}${m}${d}`;           // YYYYMMDD ✅ confirmed
   const confirmtktDate = `${d}-${m}-${y}`;         // DD-MM-YYYY ✅ confirmed
   return {
@@ -381,71 +391,37 @@ const Transportation = () => {
 
     // ── Buses ────────────────────────────────────────────
     if (activeTab === 'buses') {
-      // Format dates for each provider
-      const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      let redbusDate = '', abhiDate = '';
-      if (startDate) {
-        const [y, m, d] = startDate.split('-');
-        redbusDate = `${d}-${MONTHS[parseInt(m)-1]}-${y}`; // 15-Jun-2026 ✅ confirmed format
-        abhiDate   = `${d}-${m}-${y}`;                     // 15-06-2026 ✅ confirmed format
-      }
-
-      // RedBus: requires internal city IDs (e.g. 66065, 124) — can't pre-build search URL
-      const redbusUrl = `https://www.redbus.in`;
-
-      // AbhiBus: confirmed format /bus_search/{fromCity}/{n}/{toCity}/{n}/{DD-MM-YYYY}/O
-      // Numbers are adjacent display params — use sequential values, not the same
-      const n1 = Math.max(travelers, 1);
-      const n2 = n1 + 1;
-      const abhiBusUrl = abhiDate
-        ? `https://www.abhibus.com/bus_search/${encodeURIComponent(fromCity)}/${n1}/${encodeURIComponent(toCity)}/${n2}/${abhiDate}/O`
-        : `https://www.abhibus.com`;
-
-      // MMT Buses: fromCode/toCode/itineraryId are session-generated — can't pre-build deep link
-      const mmtBusUrl = `https://www.makemytrip.com/bus-tickets/`;
-
-      const BUS_PROVIDERS = [
-        {
-          name: 'RedBus',
-          desc: `${fromCity} → ${toCity}${redbusDate ? ' · ' + redbusDate : ''}`,
-          note: 'Cities & date pre-filled. ✅ Confirmed URL format.',
-          color: 'bg-red-500/15 border-red-500/25 text-red-400',
-          url:   redbusUrl,
-        },
-        {
-          name: 'AbhiBus',
-          desc: `${fromCity} → ${toCity}${abhiDate ? ' · ' + abhiDate : ''}`,
-          note: 'Cities & date pre-filled. ✅ Confirmed URL format.',
-          color: 'bg-orange-500/15 border-orange-500/25 text-orange-400',
-          url:   abhiBusUrl,
-        },
-        {
-          name: 'MakeMyTrip Buses',
-          desc: `${fromCity} → ${toCity}`,
-          note: '⚠️ MMT needs session codes — search manually on site.',
-          color: 'bg-[#1a73e8]/15 border-[#1a73e8]/25 text-blue-400',
-          url:   mmtBusUrl,
-        },
-      ];
-
-
       return (
-        <div>
-          <p className="text-white/40 text-sm mb-6">
-            No public bus API exists. Book directly via these providers — cities and date are pre-filled where possible.
+        <div className="flex flex-col items-center max-w-2xl mx-auto text-center py-10">
+          <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-6 border border-white/10">
+            <Bus className="h-8 w-8 text-white/40" />
+          </div>
+          <h3 className="text-white text-2xl font-bold mb-3">Book Your Bus</h3>
+          <p className="text-white/50 text-sm mb-10 leading-relaxed">
+            Live bus APIs are currently unavailable in this region. You can easily search and book direct buses for your route 
+            <span className="text-white/80 font-medium"> ({fromCity} → {toCity}) </span> 
+            on our trusted partner platforms below.
           </p>
-          <div className="grid md:grid-cols-3 gap-4">
-            {BUS_PROVIDERS.map((p) => (
-              <a key={p.name} href={p.url} target="_blank" rel="noopener noreferrer"
-                className={`flex flex-col gap-3 p-5 border rounded-2xl hover:opacity-90 transition-all ${p.color}`}>
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-sm">{p.name}</span>
-                  <ExternalLink className="h-4 w-4 opacity-60" />
-                </div>
-                <p className="text-xs font-medium opacity-90 capitalize">{p.desc}</p>
-                <p className="text-xs opacity-55">{p.note}</p>
+
+          <div className="w-full bg-white/5 border border-white/20 rounded-2xl p-6 hover:border-white/40 hover:bg-white/10 transition-all shadow-lg hover:shadow-xl">
+            <p className="text-white font-medium mb-5 text-left flex items-center gap-2">
+              <ExternalLink className="h-4 w-4 text-white/50" />
+              Search on Partner Sites
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <a href="https://www.redbus.in" target="_blank" rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 py-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-xl text-sm font-medium transition-all">
+                RedBus
               </a>
-            ))}
+              <a href="https://www.abhibus.com/" target="_blank" rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 py-3 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 text-orange-400 rounded-xl text-sm font-medium transition-all">
+                AbhiBus
+              </a>
+              <a href="https://www.makemytrip.com/bus-tickets/" target="_blank" rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 py-3 bg-[#1a73e8]/15 hover:bg-[#1a73e8]/25 border border-[#1a73e8]/20 text-blue-400 rounded-xl text-sm font-medium transition-all">
+                MakeMyTrip
+              </a>
+            </div>
           </div>
         </div>
       );
