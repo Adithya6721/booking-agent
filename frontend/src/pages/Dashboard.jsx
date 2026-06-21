@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, MapPin, PlaneTakeoff, ChevronDown, ArrowRight, Users, IndianRupee, Calendar, Loader2, Clock, Train, Bus, Car, Hotel, Sparkles } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
+import ItineraryTimeline from './ItineraryTimeline';
 // ── Constants ────────────────────────────────────────────
 const HERO_IMAGES = [
   { url: "https://images.unsplash.com/photo-1506953823976-52e1fdc0149a?w=1920&q=90&auto=format&fit=crop", location: "Maldives", tagline: "You deserve it." },
@@ -33,71 +34,11 @@ const HOTEL_OPTIONS = [
   { id: "Luxury", label: "Hotel: ⭐ Luxury" },
 ];
 
-// Color palettes for each day card
-const DAY_PALETTES = [
-  { bg: "from-violet-900/60 to-purple-900/40", badge: "bg-violet-500", border: "border-violet-500/30", dot: "#8B5CF6" },
-  { bg: "from-orange-900/60 to-red-900/40", badge: "bg-orange-500", border: "border-orange-500/30", dot: "#F97316" },
-  { bg: "from-cyan-900/60 to-blue-900/40", badge: "bg-cyan-500", border: "border-cyan-500/30", dot: "#06B6D4" },
-  { bg: "from-green-900/60 to-emerald-900/40", badge: "bg-green-500", border: "border-green-500/30", dot: "#22C55E" },
-  { bg: "from-pink-900/60 to-rose-900/40", badge: "bg-pink-500", border: "border-pink-500/30", dot: "#EC4899" },
-  { bg: "from-amber-900/60 to-yellow-900/40", badge: "bg-amber-500", border: "border-amber-500/30", dot: "#F59E0B" },
-];
+// Color palettes moved to ItineraryTimeline.jsx
 
 const PIE_COLORS = ["#8B5CF6", "#F97316", "#06B6D4", "#22C55E", "#EC4899", "#F59E0B"];
 
-// ── DayImage: Wikipedia first, then Unsplash fallback ───
-const UNSPLASH_ACCESS_KEY = 'LuVGCJIYHzrMZRoRfsPKnS3CVz63FKqFNvkbR2xqTqs'; // free public demo key
-const DayImage = ({ query, className }) => {
-  const [src, setSrc] = useState(null);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    if (!query) {
-      // Fallback: generic travel photo from Unsplash
-      setSrc(`https://source.unsplash.com/800x400/?travel,tourism,landmark`);
-      return;
-    }
-    // 1. Try Wikipedia
-    const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(query)}&prop=pageimages&format=json&pithumbsize=800&origin=*`;
-    fetch(wikiUrl)
-      .then(r => r.json())
-      .then(data => {
-        const pages = Object.values(data?.query?.pages || {});
-        const thumb = pages[0]?.thumbnail?.source;
-        if (thumb) {
-          setSrc(thumb);
-        } else {
-          // 2. Fallback: Unsplash source (no API key needed)
-          setSrc(`https://source.unsplash.com/800x400/?${encodeURIComponent(query)},landmark,tourism`);
-        }
-      })
-      .catch(() => {
-        setSrc(`https://source.unsplash.com/800x400/?${encodeURIComponent(query)},travel`);
-      });
-  }, [query]);
-
-  return (
-    <div className={`${className} bg-white/5 rounded-xl overflow-hidden relative`}>
-      {!loaded && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-6 h-6 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
-        </div>
-      )}
-      {src && (
-        <img
-          src={src}
-          alt={query}
-          className={`w-full h-full object-cover transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'}`}
-          onLoad={() => setLoaded(true)}
-          onError={() => {
-            // Final fallback if image fails to load
-            setSrc(`https://images.unsplash.com/photo-1506953823976-52e1fdc0149a?w=800&q=80&auto=format&fit=crop`);
-          }}
-        />
-      )}
-    </div>
-  );
-};
+// DayImage moved to ItineraryTimeline.jsx
 
 // ── AutocompleteInput ────────────────────────────────────
 const AutocompleteInput = ({ icon: Icon, placeholder, value, onChange }) => {
@@ -114,14 +55,14 @@ const AutocompleteInput = ({ icon: Icon, placeholder, value, onChange }) => {
   };
   return (
     <div ref={ref} className="relative flex-1 min-w-0">
-      <div className="flex items-center gap-2 px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/15 rounded-xl hover:bg-white/15 transition-all">
+      <div className="flex items-center gap-2 px-4 py-3 bg-overlay backdrop-blur-sm border border-white/15 rounded-xl hover:bg-white/15 transition-all">
         <Icon className="text-white/60 h-4 w-4 shrink-0" />
         <input type="text" placeholder={placeholder} className="bg-transparent outline-none text-white w-full placeholder-white/40 text-sm" value={value} onChange={handleChange} required />
       </div>
       {suggestions.length > 0 && (
         <ul className="absolute top-full mt-1 w-full bg-gray-950/98 border border-white/10 rounded-xl overflow-hidden z-50 shadow-2xl">
           {suggestions.map(s => (
-            <li key={s} className="px-4 py-2.5 text-white/80 hover:bg-white/10 cursor-pointer text-sm flex items-center gap-2" onMouseDown={() => { onChange(s); setSuggestions([]); }}>
+            <li key={s} className="px-4 py-2.5 text-white/80 hover:bg-overlay cursor-pointer text-sm flex items-center gap-2" onMouseDown={() => { onChange(s); setSuggestions([]); }}>
               <MapPin className="h-3.5 w-3.5 text-white/30" />{s}
             </li>
           ))}
@@ -131,68 +72,11 @@ const AutocompleteInput = ({ icon: Icon, placeholder, value, onChange }) => {
   );
 };
 
-// ── DayCard ──────────────────────────────────────────────
-const DayCard = ({ day, palette, isOpen, onToggle }) => (
-  <div className={`border ${palette.border} rounded-2xl overflow-hidden bg-gradient-to-br ${palette.bg} backdrop-blur-sm transition-all duration-300 hover:shadow-lg`}>
-    {/* Header */}
-    <button onClick={onToggle} className="w-full flex items-center gap-4 p-5 text-left">
-      <div className={`w-10 h-10 rounded-full ${palette.badge} text-white font-bold text-sm flex items-center justify-center shrink-0`}>
-        D{day.day}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-white/50 text-xs">{day.date}</p>
-        <h3 className="text-white font-semibold truncate">{day.title}</h3>
-      </div>
-      {day.estimated_cost && (
-        <span className={`text-xs ${palette.badge} bg-opacity-20 border ${palette.border} text-white rounded-full px-3 py-1 shrink-0`}>
-          {day.estimated_cost}
-        </span>
-      )}
-      <ChevronDown className={`h-4 w-4 text-white/40 transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
-    </button>
-
-    {/* Expandable body */}
-    {isOpen && (
-      <div className="px-5 pb-5">
-        <DayImage query={day.place_image_query || day.title} className="w-full h-56 rounded-xl mb-4" />
-        {day.description && <p className="text-white/60 text-sm mb-4 italic">{day.description}</p>}
-        {/* Time-sequenced schedule */}
-        {day.schedule && day.schedule.length > 0 ? (
-          <div className="space-y-3">
-            {day.schedule.map((slot, i) => (
-              <div key={i} className="flex gap-4">
-                <div className="flex flex-col items-center">
-                  <div className={`w-8 h-8 rounded-full ${palette.badge} flex items-center justify-center shrink-0`}>
-                    <Clock className="h-3.5 w-3.5 text-white" />
-                  </div>
-                  {i < day.schedule.length - 1 && <div className="w-px flex-1 bg-white/10 mt-1" />}
-                </div>
-                <div className="pb-4">
-                  <p className={`text-xs font-semibold mb-1 ${palette.badge.replace('bg-', 'text-').replace('-500', '-400')}`}>{slot.time}</p>
-                  <p className="text-white/80 text-sm">{slot.activity}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          // Fallback to activities array if schedule not present
-          <ul className="space-y-2.5">
-            {(day.activities || []).map((a, i) => (
-              <li key={i} className="flex items-start gap-3 text-sm text-white/80">
-                <span className={`w-5 h-5 rounded-full ${palette.badge} text-white text-xs flex items-center justify-center shrink-0 mt-0.5`}>{i + 1}</span>
-                {a}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    )}
-  </div>
-);
+// DayCard moved to ItineraryTimeline.jsx
 
 // ── FlightCard ───────────────────────────────────────────
 const FlightCard = ({ flight }) => (
-  <div className="bg-white/5 border border-white/10 rounded-2xl p-4 hover:border-white/20 hover:bg-white/8 transition-all">
+  <div className="bg-raised border border-white/10 rounded-2xl p-4 hover:border-white/20 hover:bg-white/8 transition-all">
     <div className="flex items-center justify-between mb-2">
       <span className="font-bold text-white text-sm">{flight.flight_number || "Flight"}</span>
       <span className="text-green-400 font-semibold">₹{flight.price?.toLocaleString()}</span>
@@ -229,18 +113,30 @@ const BudgetChart = ({ budgetSplit, totalBudget }) => {
   };
 
   return (
-    <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
+    <div className="bg-raised border border-white/10 rounded-2xl p-5">
       <h3 className="text-white font-semibold mb-1 flex items-center gap-2">
         <IndianRupee className="h-4 w-4" /> Budget Breakdown
       </h3>
-      {totalBudget && <p className="text-white/40 text-xs mb-4">Total: ₹{parseInt(totalBudget).toLocaleString()}</p>}
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={300}>
         <PieChart>
-          <Pie data={data} cx="50%" cy="50%" outerRadius={80} dataKey="value" stroke="none">
+          {totalBudget && (
+            <>
+              <text x="50%" y="46%" textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="24" fontWeight="bold">
+                ₹{parseInt(totalBudget).toLocaleString()}
+              </text>
+              <text x="50%" y="56%" textAnchor="middle" dominantBaseline="middle" fill="rgba(255,255,255,0.4)" fontSize="12">
+                Total Budget
+              </text>
+            </>
+          )}
+          <Pie data={data} cx="50%" cy="50%" innerRadius={70} outerRadius={110} dataKey="value" stroke="none" isAnimationActive={true}>
             {data.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
           </Pie>
           <Tooltip content={<CustomTooltip />} />
-          <Legend formatter={(v) => <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px' }}>{v}</span>} />
+          <Legend formatter={(v, entry, index) => {
+             const amount = data[index]?.amount;
+             return <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px' }}>{v} {amount ? `(₹${amount.toLocaleString()})` : ''}</span>;
+          }} />
         </PieChart>
       </ResponsiveContainer>
       {/* Amount breakdown table */}
@@ -348,7 +244,7 @@ const Dashboard = () => {
   const slide = HERO_IMAGES[currentSlide];
 
   return (
-    <div className="bg-[#080808] min-h-screen" style={{ fontFamily: "system-ui, sans-serif" }}>
+    <div className="bg-base min-h-screen" style={{ fontFamily: "system-ui, sans-serif" }}>
 
       {/* NAVBAR */}
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-4 bg-gradient-to-b from-black/60 to-transparent">
@@ -359,10 +255,10 @@ const Dashboard = () => {
           <span className="text-white font-bold text-lg">Voyager</span>
         </div>
         <div className="hidden md:flex items-center gap-8 text-white/60 text-sm">
-          <a href="/dashboard" className="text-white font-medium">Explore</a>
-          <a href="/transportation" className="hover:text-white transition-colors">Transportation</a>
-          <a href="#" className="hover:text-white transition-colors">Hotels</a>
-          <a href="#" className="hover:text-white transition-colors">AI Planner</a>
+          <Link to="/dashboard" className="text-white font-medium">Explore</Link>
+          <Link to="/transportation" className="hover:text-white transition-colors">Transportation</Link>
+          <Link to="/hotels" className="hover:text-white transition-colors">Hotels</Link>
+          <Link to="/ai-planner" className="hover:text-white transition-colors">AI Planner</Link>
         </div>
         <button onClick={handleSignOut} className="text-sm text-black bg-white px-5 py-2 rounded-full font-medium hover:bg-white/90 transition-colors">Sign Out</button>
       </nav>
@@ -374,7 +270,7 @@ const Dashboard = () => {
         <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-[#080808]" />
 
         {/* Location badge */}
-        <div className="absolute top-20 right-8 flex items-center gap-1.5 text-white/70 text-xs bg-white/10 backdrop-blur-sm border border-white/15 rounded-full px-3 py-1.5">
+        <div className="absolute top-20 right-8 flex items-center gap-1.5 text-white/70 text-xs bg-overlay backdrop-blur-sm border border-white/15 rounded-full px-3 py-1.5">
           <MapPin className="h-3.5 w-3.5" />{slide.location}
         </div>
 
@@ -388,7 +284,7 @@ const Dashboard = () => {
 
         {/* HERO CONTENT */}
         <div className="relative z-10 h-full flex flex-col items-center justify-center px-4 text-center pb-4">
-          <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-4 py-1.5 mb-5">
+          <div className="inline-flex items-center gap-2 bg-overlay backdrop-blur-sm border border-white/20 rounded-full px-4 py-1.5 mb-5">
             <Sparkles className="h-3.5 w-3.5 text-yellow-400" />
             <span className="text-white/80 text-xs font-medium tracking-widest uppercase">AI-Powered Travel Planner</span>
           </div>
@@ -408,14 +304,14 @@ const Dashboard = () => {
                 <AutocompleteInput icon={PlaneTakeoff} placeholder="Where to?" value={toCity} onChange={setToCity} />
                 <div className="flex flex-col gap-0.5 min-w-0 md:w-44">
                   <label className="text-white/30 text-xs px-1">Departure</label>
-                  <div className="flex items-center gap-2 px-4 py-2.5 bg-white/10 border border-white/15 rounded-xl">
+                  <div className="flex items-center gap-2 px-4 py-2.5 bg-overlay border border-white/15 rounded-xl">
                     <Calendar className="text-white/60 h-4 w-4 shrink-0" />
                     <input type="date" className="bg-transparent outline-none text-white text-sm w-full" value={startDate} onChange={e => setStartDate(e.target.value)} required />
                   </div>
                 </div>
                 <div className="flex flex-col gap-0.5 min-w-0 md:w-44">
                   <label className="text-white/30 text-xs px-1">Return</label>
-                  <div className="flex items-center gap-2 px-4 py-2.5 bg-white/10 border border-white/15 rounded-xl">
+                  <div className="flex items-center gap-2 px-4 py-2.5 bg-overlay border border-white/15 rounded-xl">
                     <Calendar className="text-white/60 h-4 w-4 shrink-0" />
                     <input type="date" className="bg-transparent outline-none text-white text-sm w-full" value={endDate} onChange={e => setEndDate(e.target.value)} required />
                   </div>
@@ -424,11 +320,11 @@ const Dashboard = () => {
 
               {/* Row 2: Travelers / Budget / Transport / Hotel */}
               <div className="flex flex-wrap gap-2 items-center">
-                <div className="flex items-center gap-2 px-4 py-2.5 bg-white/10 border border-white/15 rounded-xl w-36">
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-overlay border border-white/15 rounded-xl w-36">
                   <Users className="text-white/60 h-4 w-4 shrink-0" />
                   <input type="number" min="1" placeholder="Travelers" className="bg-transparent outline-none text-white text-sm w-full placeholder-white/40" value={travelers} onChange={e => setTravelers(e.target.value)} />
                 </div>
-                <div className="flex items-center gap-2 px-4 py-2.5 bg-white/10 border border-white/15 rounded-xl w-40">
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-overlay border border-white/15 rounded-xl w-40">
                   <IndianRupee className="text-white/60 h-4 w-4 shrink-0" />
                   <input type="number" min="0" placeholder="Total budget" className="bg-transparent outline-none text-white text-sm w-full placeholder-white/40" value={budget} onChange={e => setBudget(e.target.value)} />
                 </div>
@@ -437,7 +333,7 @@ const Dashboard = () => {
                 <div className="flex gap-1.5">
                   {TRANSPORT_OPTIONS.map(({ id, label, icon: Icon }) => (
                     <button key={id} type="button" onClick={() => setTransportMode(id)}
-                      className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl border transition-all ${transportMode === id ? 'bg-white text-black border-white font-medium' : 'bg-white/5 text-white/60 border-white/15 hover:border-white/30'}`}>
+                      className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl border transition-all ${transportMode === id ? 'bg-white text-black border-white font-medium' : 'bg-raised text-white/60 border-white/15 hover:border-white/30'}`}>
                       <Icon className="h-3.5 w-3.5" />{label}
                     </button>
                   ))}
@@ -447,7 +343,7 @@ const Dashboard = () => {
                 <div className="flex gap-1.5">
                   {HOTEL_OPTIONS.map(({ id, label }) => (
                     <button key={id} type="button" onClick={() => setHotelType(id)}
-                      className={`text-xs px-3 py-2 rounded-xl border transition-all ${hotelType === id ? 'bg-white text-black border-white font-medium' : 'bg-white/5 text-white/60 border-white/15 hover:border-white/30'}`}>
+                      className={`text-xs px-3 py-2 rounded-xl border transition-all ${hotelType === id ? 'bg-white text-black border-white font-medium' : 'bg-raised text-white/60 border-white/15 hover:border-white/30'}`}>
                       {label}
                     </button>
                   ))}
@@ -458,7 +354,7 @@ const Dashboard = () => {
               <div className="flex flex-wrap gap-2 items-center">
                 {INTEREST_TAGS.map(tag => (
                   <button key={tag} type="button" onClick={() => toggleInterest(tag)}
-                    className={`text-xs px-3 py-1.5 rounded-full border transition-all ${interests.includes(tag) ? 'bg-white text-black border-white' : 'bg-white/5 text-white/60 border-white/15 hover:border-white/30'}`}>
+                    className={`text-xs px-3 py-1.5 rounded-full border transition-all ${interests.includes(tag) ? 'bg-white text-black border-white' : 'bg-raised text-white/60 border-white/15 hover:border-white/30'}`}>
                     {tag}
                   </button>
                 ))}
@@ -516,19 +412,15 @@ const Dashboard = () => {
               <div className="grid lg:grid-cols-[1fr_360px] gap-8 items-start">
 
                 {/* LEFT: Itinerary Timeline */}
-                <div className="space-y-3">
-                  <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-yellow-400" /> Day-by-Day Itinerary
-                  </h3>
-                  {itinerary.map((day, i) => (
-                    <DayCard
-                      key={day.day}
-                      day={day}
-                      palette={DAY_PALETTES[i % DAY_PALETTES.length]}
-                      isOpen={openDay === i}
-                      onToggle={() => setOpenDay(openDay === i ? -1 : i)}
-                    />
-                  ))}
+                <div className="min-w-0">
+                  <ItineraryTimeline
+                    itinerary={itinerary}
+                    budgetSplit={budgetSplit}
+                    budget={budget}
+                    meta={meta}
+                    transportMode={transportMode}
+                    hotelType={hotelType}
+                  />
                 </div>
 
                 {/* RIGHT: Budget Chart + Transport Link */}
@@ -543,8 +435,8 @@ const Dashboard = () => {
                   <div className="grid grid-cols-1 gap-3">
                     <a
                       href={`/transportation?from=${encodeURIComponent(fromCity)}&to=${encodeURIComponent(toCity)}&start=${startDate}&end=${endDate}&travelers=${travelers || 1}&hotel=${hotelType}`}
-                      className="flex items-center gap-4 p-4 bg-white/5 border border-white/10 rounded-2xl hover:border-white/20 hover:bg-white/8 transition-all group">
-                      <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0 group-hover:bg-white/15 transition-colors">
+                      className="flex items-center gap-4 p-4 bg-raised border border-white/10 rounded-2xl hover:border-white/20 hover:bg-white/8 transition-all group">
+                      <div className="w-10 h-10 rounded-xl bg-overlay flex items-center justify-center shrink-0 group-hover:bg-white/15 transition-colors">
                         <PlaneTakeoff className="h-4 w-4 text-white" />
                       </div>
                       <div>
@@ -556,8 +448,8 @@ const Dashboard = () => {
 
                     <a
                       href={`/hotels?to=${encodeURIComponent(toCity)}&start=${startDate}&end=${endDate}&travelers=${travelers || 1}&hotel=${hotelType}`}
-                      className="flex items-center gap-4 p-4 bg-white/5 border border-white/10 rounded-2xl hover:border-white/20 hover:bg-white/8 transition-all group">
-                      <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0 group-hover:bg-white/15 transition-colors">
+                      className="flex items-center gap-4 p-4 bg-raised border border-white/10 rounded-2xl hover:border-white/20 hover:bg-white/8 transition-all group">
+                      <div className="w-10 h-10 rounded-xl bg-overlay flex items-center justify-center shrink-0 group-hover:bg-white/15 transition-colors">
                         <Hotel className="h-4 w-4 text-white" />
                       </div>
                       <div>

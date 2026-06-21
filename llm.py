@@ -14,10 +14,17 @@ import database
 load_dotenv()
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+GROQ_MODEL   = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-MAX_TOOL_CALLS = 2
+MAX_TOOL_CALLS = 4
 LLM_CACHE = {}
+
+# Persistent session reuses TCP connections — prevents Windows ConnectionResetError(10054)
+_SESSION = requests.Session()
+_SESSION.headers.update({
+    "Content-Type": "application/json",
+    "Connection": "keep-alive",
+})
 
 KNOWN_CITIES = sorted(
     ["Chennai", "Goa", "Mumbai", "Delhi", "Bangalore", "Hyderabad",
@@ -33,17 +40,18 @@ tools = [
         "type": "function",
         "function": {
             "name": "search_flights",
-            "description": "Search flights from one city to another on a specific date.",
+            "description": "Search flights from one city to another on a specific date. Date MUST be in YYYY-MM-DD format.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "from_city": {"type": "string"},
-                    "to_city": {"type": "string"},
-                    "date": {"type": "string"},
-                    "adults": {"type": "integer", "description": "Number of passengers. Default is 1."},
-                    "return_date": {"type": "string", "description": "Optional. Return date for round-trip."}
+                    "to_city":   {"type": "string"},
+                    "date":      {"type": "string", "description": "Travel date in YYYY-MM-DD format. Convert '21st July 2026' → '2026-07-21'."},
+                    "adults":    {"anyOf": [{"type": "integer"}, {"type": "null"}], "description": "Number of passengers. Default 1."},
+                    "return_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "description": "Return date YYYY-MM-DD. Null if one-way."},
                 },
                 "required": ["from_city", "to_city", "date"],
+                "additionalProperties": False,
             },
         },
     },
@@ -51,18 +59,19 @@ tools = [
         "type": "function",
         "function": {
             "name": "search_hotels",
-            "description": "Search hotels in a city under a maximum nightly budget.",
+            "description": "Search hotels in a city. Dates MUST be in YYYY-MM-DD format.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "city": {"type": "string"},
-                    "check_in_date": {"type": "string"},
-                    "check_out_date": {"type": "string"},
-                    "adults": {"type": "integer", "description": "Number of guests. Default is 1."},
-                    "max_price": {"type": "integer", "description": "Maximum price per night. Optional."},
-                    "amenities": {"type": "string", "description": "Preferences like 'pool, AC, 5-star'. Optional."}
+                    "city":           {"type": "string"},
+                    "check_in_date":  {"type": "string", "description": "Check-in date YYYY-MM-DD."},
+                    "check_out_date": {"type": "string", "description": "Check-out date YYYY-MM-DD."},
+                    "adults":    {"anyOf": [{"type": "integer"}, {"type": "null"}], "description": "Number of guests. Default 1."},
+                    "max_price": {"anyOf": [{"type": "integer"}, {"type": "null"}], "description": "Max price per night INR. Null = no limit."},
+                    "amenities": {"anyOf": [{"type": "string"},  {"type": "null"}], "description": "Preferences like 'pool, AC'. Null = no preference."},
                 },
                 "required": ["city", "check_in_date", "check_out_date"],
+                "additionalProperties": False,
             },
         },
     },
@@ -70,23 +79,25 @@ tools = [
         "type": "function",
         "function": {
             "name": "update_trip_context",
-            "description": "Save known trip details like destination, origin, date, or budget. Call this when you learn new info about the trip.",
+            "description": "Save trip details the user mentioned. Only include fields you KNOW — omit unknown fields entirely, do not pass null.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "origin": {"type": "string"},
-                    "destination": {"type": "string"},
-                    "travel_date": {"type": "string"},
-                    "budget": {"type": "integer"},
-                    "adults": {"type": "integer"},
-                    "return_date": {"type": "string"},
-                    "check_out_date": {"type": "string"},
-                    "amenities": {"type": "string"}
-                }
+                    "origin":        {"anyOf": [{"type": "string"},  {"type": "null"}]},
+                    "destination":   {"anyOf": [{"type": "string"},  {"type": "null"}]},
+                    "travel_date":   {"anyOf": [{"type": "string"},  {"type": "null"}], "description": "YYYY-MM-DD format."},
+                    "budget":        {"anyOf": [{"type": "integer"}, {"type": "null"}], "description": "Total budget in INR."},
+                    "adults":        {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+                    "return_date":   {"anyOf": [{"type": "string"},  {"type": "null"}], "description": "YYYY-MM-DD format."},
+                    "check_out_date":{"anyOf": [{"type": "string"},  {"type": "null"}], "description": "YYYY-MM-DD format."},
+                    "amenities":     {"anyOf": [{"type": "string"},  {"type": "null"}]},
+                },
+                "additionalProperties": False,
             }
         }
     }
 ]
+
 
 STAGE_INSTRUCTIONS = {
     "IDLE": "The user hasn't started planning yet. Help them explore. Ask where they want to go, when, and how many people.",
@@ -97,36 +108,23 @@ STAGE_INSTRUCTIONS = {
     "BOOKED": "Booking is complete. Show the confirmation details. Do not search again unless the user explicitly starts a new trip."
 }
 
-SYSTEM_PROMPT_TEMPLATE = """
-You are an intelligent travel planning agent that uses tools to answer user queries.
+# Compact single-block system prompt — every word counts toward token budget
+SYSTEM_PROMPT_TEMPLATE = """You are Voyager, an AI travel booking assistant. ONLY answer travel-related questions.
+Refuse anything off-topic (coding, math, trivia) politely and redirect to travel.
 
-Available tools:
-1. search_flights(from_city, to_city, date, adults, return_date)
-   Searches real flights via Google Flights.
+STAGE: {booking_stage} | {stage_instruction}
+TRIP: {trip_context}
 
-2. search_hotels(city, check_in_date, check_out_date, adults, max_price, amenities)
-   Searches real hotels via Google Hotels.
+TOOLS: search_flights(from_city,to_city,date[YYYY-MM-DD],adults,return_date) | search_hotels(city,check_in_date,check_out_date,adults,max_price,amenities) | update_trip_context(...)
 
-3. update_trip_context(origin, destination, travel_date, budget, adults, return_date, check_out_date, amenities)
-   Updates the memory of the current trip. Always call this if the user mentions new locations, budgets, or passenger counts.
-
-CURRENT BOOKING STAGE: {booking_stage}
-STAGE INSTRUCTION: {stage_instruction}
-
-Current Known Trip Details:
-{trip_context}
-
-Rules:
-- You MUST follow the STAGE INSTRUCTION above.
-- Use tools for real flight or hotel availability.
-- Do not invent flight or hotel prices.
-- If a user asks for both flights and hotels, call both tools.
-- If required details are missing, ask for the missing city, date, or budget.
-- For general travel questions, answer naturally and briefly.
-- Keep responses clear and structured.
-- If the user wants to start a completely new trip, reset context.
+RULES:
+- Dates in tools MUST be YYYY-MM-DD. Convert natural language ("21st July 2026"→"2026-07-21").
+- REQUIRED before searching: flights need from_city+to_city+date; hotels need city+check_in+check_out.
+- If any required field is missing, ask for it ONE AT A TIME. Do NOT call a tool with missing data.
+- Optional fields (adults=1 default, budget, amenities, return_date): use defaults, do NOT ask.
+- Never invent prices. For general travel questions answer directly without tools.
+- Keep replies concise. Use short bullet points.
 """
-
 
 def ask_llm(user_message: str, debug: bool = False, session_id: str = None):
     text = user_message.strip()
@@ -323,6 +321,29 @@ def ask_llm(user_message: str, debug: bool = False, session_id: str = None):
 
     def _run_tool(tool_name: str, args: dict):
         args = dict(args or {})
+        
+        # FIX 1: Strip null/None values — Groq schema validation rejects null for typed fields
+        args = {k: v for k, v in args.items() if v is not None}
+
+        # FIX 2: Normalize natural language dates to YYYY-MM-DD
+        def _normalize_date(val: str) -> str:
+            """Convert '21st July 2026', 'July 21 2026', '21-07-2026' → '2026-07-21'."""
+            if not val:
+                return val
+            # Already correct format
+            if re.match(r'^\d{4}-\d{2}-\d{2}$', val.strip()):
+                return val.strip()
+            # Try multiple common formats
+            for fmt in ["%d %B %Y", "%B %d %Y", "%d-%m-%Y", "%d/%m/%Y", "%B %d, %Y"]:
+                try:
+                    from datetime import datetime as _dt
+                    # Strip ordinal suffixes: 21st → 21, 3rd → 3
+                    cleaned = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', val.strip())
+                    return _dt.strptime(cleaned, fmt).strftime("%Y-%m-%d")
+                except ValueError:
+                    continue
+            print(f"[DATE WARNING] Could not normalize date: '{val}' — using as-is")
+            return val
 
         if tool_name == "search_flights":
             required = ("from_city", "to_city", "date")
@@ -330,12 +351,15 @@ def ask_llm(user_message: str, debug: bool = False, session_id: str = None):
             if missing:
                 return {"error": f"Missing required flight field(s): {', '.join(missing)}"}
 
+            normalized_date = _normalize_date(str(args["date"]))
+            normalized_return = _normalize_date(str(args["return_date"])) if args.get("return_date") else None
+
             return search_flights(
                 from_city=str(args["from_city"]).strip(),
                 to_city=str(args["to_city"]).strip(),
-                date=str(args["date"]).strip(),
+                date=normalized_date,
                 adults=int(args.get("adults", 1)),
-                return_date=args.get("return_date")
+                return_date=normalized_return
             )
 
         if tool_name == "search_hotels":
@@ -403,42 +427,59 @@ def ask_llm(user_message: str, debug: bool = False, session_id: str = None):
             if session_id:
                 database.update_booking_stage(session_id, "BOOKED")
 
+    # Build compact trip context — only include fields that have actual values
+    compact_ctx = {k: v for k, v in current_trip_ctx.items() if v not in (None, "", [], {})}
+    # Remove internal DB fields the LLM doesn't need
+    compact_ctx.pop("booking_stage", None)
+    compact_ctx.pop("session_id", None)
+    compact_ctx.pop("id", None)
+    ctx_str = ", ".join(f"{k}={v}" for k, v in compact_ctx.items()) if compact_ctx else "none yet"
+
     # Build stage-aware system prompt
     dynamic_system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
         booking_stage=current_stage,
         stage_instruction=STAGE_INSTRUCTIONS.get(current_stage, ""),
-        trip_context=json.dumps(current_trip_ctx, indent=2)
+        trip_context=ctx_str,
     )
 
     messages = [{"role": "system", "content": dynamic_system_prompt}]
 
     if session_id:
-        # Load last 5 messages from history
-        history = database.get_history(session_id, limit=5)
-        # Add history. Make sure we don't duplicate the user message we just saved.
-        # get_history already returns the latest, so the user message is the last one in the list.
+        # 3 turns (6 messages) is enough context — keeps token count low
+        history = database.get_history(session_id, limit=3)
         messages.extend(history)
     else:
         messages.append({"role": "user", "content": user_message})
 
-    for _ in range(MAX_TOOL_CALLS):
+    for attempt in range(MAX_TOOL_CALLS):
         try:
-            response = requests.post(
-                GROQ_API_URL,
-                headers={
-                    "Authorization": f"Bearer {GROQ_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": GROQ_MODEL,
-                    "messages": messages,
-                    "tools": tools,
-                    "tool_choice": "auto",
-                    "temperature": 0.2,
-                    "max_tokens": 700,
-                },
-                timeout=30,
-            )
+            last_exc = None
+            for retry in range(3):
+                try:
+                    # Use persistent Session — reuses TCP connection, prevents 10054 on Windows
+                    _SESSION.headers["Authorization"] = f"Bearer {GROQ_API_KEY}"
+                    response = _SESSION.post(
+                        GROQ_API_URL,
+                        json={
+                            "model":       GROQ_MODEL,
+                            "messages":    messages,
+                            "tools":       tools,
+                            "tool_choice": "auto",
+                            "temperature": 0.2,
+                            "max_tokens":  1024,
+                        },
+                        timeout=30,
+                    )
+                    last_exc = None
+                    break
+                except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as conn_err:
+                    last_exc = conn_err
+                    wait = 2 ** retry
+                    print(f"[Groq] Connection error (attempt {retry+1}/3), retrying in {wait}s: {conn_err}")
+                    import time; time.sleep(wait)
+            
+            if last_exc:
+                raise last_exc
 
             if response.status_code == 429:
                 retry_after = response.headers.get("retry-after", "a few")

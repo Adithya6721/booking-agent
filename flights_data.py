@@ -5,6 +5,9 @@ from dotenv import load_dotenv
 load_dotenv()
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 
+_SESSION = requests.Session()
+_SESSION.headers.update({"Connection": "keep-alive"})
+
 # SerpApi Google Flights requires IATA airport codes, NOT city names.
 # This lookup table converts city names to their primary airport codes.
 CITY_TO_IATA = {
@@ -89,17 +92,30 @@ def search_flights(from_city: str, to_city: str, date: str, adults: int = 1, ret
     else:
         params["type"] = "2"  # One way (REQUIRED - default is round trip which needs return_date)
 
-    try:
-        response = requests.get(url, params=params, timeout=15)
-        response.raise_for_status()
-        data = response.json()
-    except requests.exceptions.HTTPError as e:
-        print(f"SerpApi HTTP error: {e}")
-        print(f"Response body: {e.response.text[:500] if e.response else 'N/A'}")
-        return {"error": f"SerpApi returned error: {e.response.status_code if e.response else 'unknown'}"}
-    except Exception as e:
-        print("SerpApi error:", e)
-        return {"error": "Failed to fetch flights from SerpApi"}
+    last_exc = None
+    for retry in range(3):
+        try:
+            response = _SESSION.get(url, params=params, timeout=15)
+            response.raise_for_status()
+            data = response.json()
+            last_exc = None
+            break
+        except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
+            last_exc = e
+            wait = 2 ** retry
+            print(f"[SerpApi Flights] Connection error (attempt {retry+1}/3), retrying in {wait}s: {e}")
+            import time; time.sleep(wait)
+        except requests.exceptions.HTTPError as e:
+            print(f"SerpApi HTTP error: {e}")
+            print(f"Response body: {e.response.text[:500] if e.response else 'N/A'}")
+            return {"error": f"SerpApi returned error: {e.response.status_code if e.response else 'unknown'}"}
+        except Exception as e:
+            print("SerpApi error:", e)
+            return {"error": "Failed to fetch flights from SerpApi"}
+            
+    if last_exc:
+        print("SerpApi error after retries:", last_exc)
+        return {"error": "Failed to fetch flights from SerpApi due to connection drops"}
 
     # SerpApi returns flights in 'best_flights' and 'other_flights'
     raw_flights = data.get("best_flights", [])

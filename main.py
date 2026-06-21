@@ -7,6 +7,8 @@ from llm import ask_llm
 from flights_data import search_flights
 from hotels_data import search_hotels
 from trains_data import search_trains
+from weather_data import get_weather_for_trip
+from email_service import send_booking_email
 import database
 import os, json, requests
 from dotenv import load_dotenv
@@ -41,6 +43,7 @@ class ChatResponse(BaseModel):
     intent: Optional[str] = None
     qwen_json: Optional[dict[str, Any]] = None
     error: Optional[str] = None
+    stage: Optional[str] = None
 
 class FlightRequest(BaseModel):
     from_city: str
@@ -67,8 +70,24 @@ class ItineraryRequest(BaseModel):
     travelers: int = 1
     budget: Optional[int] = None
     interests: Optional[List[str]] = []
-    transport_mode: Optional[str] = "flight"   # flight | train | bus | car
-    hotel_type: Optional[str] = "AC"           # AC | Non-AC | Luxury
+    transport_mode: Optional[str] = "flight"
+    hotel_type: Optional[str] = "AC"
+
+class WeatherRequest(BaseModel):
+    city: str
+    start_date: str
+    end_date: str
+
+class BookingConfirmRequest(BaseModel):
+    user_email: str
+    from_city: str
+    to_city: str
+    start_date: str
+    end_date: str
+    travelers: int = 1
+    hotel: Optional[str] = None
+    itinerary: Optional[List[Any]] = []
+    budget: Optional[int] = None
 
 # ── Routes ───────────────────────────────────────────────
 @app.get("/")
@@ -79,10 +98,16 @@ def root():
 def chat(request: ChatRequest):
     session_id = database.get_or_create_session(request.session_id)
     result = ask_llm(request.message, debug=request.debug, session_id=session_id)
+    
+    # Fetch the latest stage from the database after LLM processes the message
+    trip_ctx = database.get_trip_context(session_id)
+    current_stage = trip_ctx.get("booking_stage", "IDLE")
+
     if isinstance(result, dict):
         result["session_id"] = session_id
+        result["stage"] = current_stage
         return ChatResponse(**result)
-    return ChatResponse(reply=result, session_id=session_id)
+    return ChatResponse(reply=result, session_id=session_id, stage=current_stage)
 
 @app.post("/flights")
 def get_flights(request: FlightRequest):
@@ -113,7 +138,7 @@ def generate_itinerary(request: ItineraryRequest):
     try:
         start = datetime.strptime(request.start_date, "%Y-%m-%d")
         end = datetime.strptime(request.end_date, "%Y-%m-%d")
-        num_days = max((end - start).days, 1)
+        num_days = max((end - start).days + 1, 1)
     except Exception:
         num_days = 3
 
@@ -122,46 +147,55 @@ def generate_itinerary(request: ItineraryRequest):
 
     prompt = f"""You are an expert travel planner. Generate a detailed {num_days}-day itinerary.
 
-Trip Details:
-- From: {request.from_city} → Destination: {request.to_city}
-- Departure: {request.start_date}, Return: {request.end_date} ({num_days} days)
-- Travelers: {request.travelers} person(s)
-- Total Budget: {budget_str}
-- Interests: {interests_str}
-- Preferred Transport: {request.transport_mode}
-- Hotel Type: {request.hotel_type} rooms
+Trip: {request.from_city} → {request.to_city} | {request.start_date} to {request.end_date}
+Travelers: {request.travelers} | Budget: {budget_str} | Interests: {interests_str}
+Transport: {request.transport_mode} | Hotel: {request.hotel_type}
 
-Instructions:
-1. Each day must have Morning, Afternoon, and Evening activities with realistic timings.
-2. Calculate budget_split percentages intelligently based on transport mode and hotel type:
-   - If transport is "flight" → Transport gets a higher percentage (30-40%)
-   - If transport is "train" or "bus" → Transport gets less (10-20%)
-   - If hotel is "Luxury" → Hotels gets 35-40%, otherwise 20-30%
-   - Remaining goes to Food and Activities. All percentages must sum to exactly 100.
-3. If budget is provided, also calculate estimated_cost_total (total cost for all travelers).
+RULES:
+- Each day MUST have exactly 3 schedule slots: Morning (~9AM), Afternoon (~1PM), Evening (~6PM)
+- place_image_query MUST be a specific famous landmark visited that day + city name
+  e.g. "Charminar Hyderabad" NOT "Hyderabad travel". NEVER repeat a query across days.
+- budget_split percentages MUST sum to exactly 100. No exceptions.
+- Flight transport → Transport 30-40%. Train/bus → Transport 10-20%.
+- Luxury hotel → Hotels 35-40%. AC → Hotels 20-28%. Non-AC → Hotels 12-18%.
+- Remainder split between Food (higher) and Activities (lower).
 
-Return ONLY a valid JSON object (no markdown, no extra text):
+Return ONLY valid JSON, no markdown fences, no explanation:
 {{
   "itinerary": [
     {{
       "day": 1,
       "date": "YYYY-MM-DD",
-      "title": "Catchy day title",
-      "description": "One vivid sentence summarising the day experience",
+      "title": "Short evocative title (max 5 words)",
+      "description": "One vivid sentence describing today's theme",
+      "highlight": "🏰 Best moment of the day in one phrase",
+      "local_tip": "One insider tip locals know",
       "schedule": [
-        {{"time": "Morning (9:00 AM)", "activity": "Visit [Place] – [what to do and why it's special]"}},
-        {{"time": "Afternoon (1:00 PM)", "activity": "Lunch at [restaurant type] followed by [activity]"}},
-        {{"time": "Evening (6:00 PM)", "activity": "[Evening activity or dinner spot with atmosphere detail]"}}
+        {{
+          "time": "Morning (9:00 AM)",
+          "activity": "Visit [Specific Place Name] — [why it's special, what to do there]",
+          "tip": "Practical tip for this activity"
+        }},
+        {{
+          "time": "Afternoon (1:00 PM)",
+          "activity": "...",
+          "tip": "..."
+        }},
+        {{
+          "time": "Evening (6:00 PM)",
+          "activity": "...",
+          "tip": "..."
+        }}
       ],
-      "place_image_query": "Most iconic landmark visited this day, e.g. 'Red Fort Delhi'",
+      "place_image_query": "Famous landmark name + city e.g. Gateway of India Mumbai",
       "estimated_cost": "₹XXXX per person"
     }}
   ],
   "budget_split": {{
-    "Transport": <integer percentage>,
-    "Hotels": <integer percentage>,
-    "Food": <integer percentage>,
-    "Activities": <integer percentage>
+    "Transport": <integer>,
+    "Hotels": <integer>,
+    "Food": <integer>,
+    "Activities": <integer>
   }}
 }}"""
 
@@ -182,6 +216,17 @@ Return ONLY a valid JSON object (no markdown, no extra text):
         parsed = json.loads(raw)
         itinerary = parsed.get("itinerary", [])
         budget_split = parsed.get("budget_split", {})
+        
+        if budget_split:
+            total_split = sum(budget_split.values())
+            if total_split > 0:
+                normalized_split = {k: round((v / total_split) * 100) for k, v in budget_split.items()}
+                diff = 100 - sum(normalized_split.values())
+                if diff != 0:
+                    largest_key = max(normalized_split, key=normalized_split.get)
+                    normalized_split[largest_key] += diff
+                budget_split = normalized_split
+
     except Exception as e:
         print("Itinerary error:", e)
 
@@ -238,4 +283,75 @@ def get_transport_data(request: TransportDataRequest):
             "start_date": request.start_date, "end_date": request.end_date,
             "travelers": request.travelers
         }
+    }
+
+@app.post("/weather")
+def get_weather(request: WeatherRequest):
+    """
+    Returns current real-time weather (Zomato Weather Union)
+    + trip date forecast (Open-Meteo, no API key needed).
+    Interview Crux: Two-source hybrid — real sensor data for now,
+    Open-Meteo WMO forecast for the trip dates. Both free.
+    """
+    return get_weather_for_trip(request.city, request.start_date, request.end_date)
+
+@app.post("/confirm-booking")
+def confirm_booking(request: BookingConfirmRequest):
+    """
+    Mock booking confirmation endpoint.
+    1. Generates a realistic PNR reference number
+    2. Fetches weather forecast for the destination
+    3. Sends a rich HTML email with PDF itinerary via Resend
+    4. Returns the Google Calendar pre-filled URL
+
+    Interview Crux: The 'booking' is intentionally mocked (no real payment
+    gateway) because airline/hotel APIs require enterprise partnerships.
+    This demonstrates the full Agentic workflow up to the point of execution.
+    In production, step 1 would call a Razorpay/Stripe payment API, and
+    step 3 would call the airline booking API with the payment token.
+    """
+    import uuid, urllib.parse
+
+    # Generate a realistic-looking booking reference
+    pnr = f"VYG-{uuid.uuid4().hex[:6].upper()}"
+
+    booking = {
+        "pnr":        pnr,
+        "from_city":  request.from_city,
+        "to_city":    request.to_city,
+        "start_date": request.start_date,
+        "end_date":   request.end_date,
+        "travelers":  request.travelers,
+        "hotel":      request.hotel or "",
+    }
+
+    # Fetch weather for the destination and trip dates
+    weather = get_weather_for_trip(request.to_city, request.start_date, request.end_date)
+
+    # Send confirmation email with PDF itinerary
+    email_result = send_booking_email(
+        user_email=request.user_email,
+        booking=booking,
+        itinerary=request.itinerary or [],
+        weather=weather,
+    )
+
+    # Build Google Calendar pre-filled URL
+    cal_start = request.start_date.replace("-", "")
+    cal_end   = request.end_date.replace("-", "")
+    cal_title = f"✈️ Trip to {request.to_city} — {pnr}"
+    calendar_url = (
+        f"https://calendar.google.com/calendar/render?action=TEMPLATE"
+        f"&text={urllib.parse.quote(cal_title)}"
+        f"&dates={cal_start}/{cal_end}"
+        f"&details={urllib.parse.quote('Booked via Voyager AI. Have a great trip!')}"
+        f"&location={urllib.parse.quote(request.to_city + ', India')}"
+    )
+
+    return {
+        "status":       "confirmed",
+        "pnr":          pnr,
+        "email_status": email_result.get("status", "failed"),
+        "calendar_url": calendar_url,
+        "weather":      weather,
     }

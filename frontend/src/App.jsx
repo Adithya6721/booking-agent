@@ -5,6 +5,7 @@ import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import Transportation from './pages/Transportation';
 import Hotels from './pages/Hotels';
+import AIPlanner from './pages/AIPlanner';
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/transportation" element={<Transportation />} />
         <Route path="/hotels" element={<Hotels />} />
+        <Route path="/ai-planner" element={<AIPlanner />} />
         <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>

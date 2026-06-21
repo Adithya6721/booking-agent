@@ -72,7 +72,7 @@ const Navbar = () => {
         <Link to="/dashboard" className="text-white/60 hover:text-white transition-colors">Explore</Link>
         <Link to="/transportation" className="text-white font-medium">Transportation</Link>
         <Link to="/hotels" className="text-white/60 hover:text-white transition-colors">Hotels</Link>
-        <a href="#" className="text-white/60 hover:text-white transition-colors">AI Planner</a>
+        <Link to="/ai-planner" className="text-white/60 hover:text-white transition-colors">AI Planner</Link>
       </div>
       <button onClick={handleSignOut} className="text-sm text-black bg-white px-5 py-2 rounded-full font-medium hover:bg-white/90 transition-colors">Sign Out</button>
     </nav>
@@ -81,7 +81,7 @@ const Navbar = () => {
 
 // ── Trip Bar ─────────────────────────────────────────────
 const TripBar = ({ from, to, start, end, travelers }) => (
-  <div className="flex flex-wrap items-center gap-4 mb-8 p-4 bg-white/5 border border-white/10 rounded-2xl">
+  <div className="flex flex-wrap items-center gap-4 mb-8 p-4 bg-raised border border-white/10 rounded-2xl">
     <div className="flex items-center gap-2 text-white font-semibold">
       <MapPin className="h-4 w-4 text-white/40" />
       <span className="capitalize">{from}</span>
@@ -103,7 +103,7 @@ const FlightCard = ({ flight, fromCity, toCity, date, travelers }) => {
   const links = buildFlightLinks(fromCity, toCity, date, travelers, flight);
   const dur = flight.total_duration ? `${Math.floor(flight.total_duration/60)}h ${flight.total_duration%60}m` : null;
   return (
-    <div className="bg-white/5 border border-white/20 rounded-2xl p-5 hover:border-white/40 hover:bg-white/10 transition-all shadow-lg hover:shadow-xl">
+    <div className="bg-raised border border-white/20 rounded-2xl p-5 hover:border-white/40 hover:bg-overlay transition-all shadow-lg hover:shadow-xl">
       <div className="flex items-start justify-between mb-4">
         <div>
           <p className="text-white/40 text-xs mb-0.5">{flight.airline}</p>
@@ -121,9 +121,9 @@ const FlightCard = ({ flight, fromCity, toCity, date, travelers }) => {
         </div>
         <div className="flex-1 flex flex-col items-center gap-1">
           <div className="flex items-center gap-2 w-full">
-            <div className="flex-1 h-px bg-white/10" />
+            <div className="flex-1 h-px bg-overlay" />
             <PlaneTakeoff className="h-4 w-4 text-white/30" />
-            <div className="flex-1 h-px bg-white/10" />
+            <div className="flex-1 h-px bg-overlay" />
           </div>
           {dur && <p className="text-white/30 text-xs">{dur}</p>}
         </div>
@@ -137,7 +137,7 @@ const FlightCard = ({ flight, fromCity, toCity, date, travelers }) => {
           {flight.layovers === 0 ? '✓ Non-stop' : `${flight.layovers} stop(s)`}
         </span>
         {travelers > 1 && (
-          <span className="text-xs px-2.5 py-1 rounded-full bg-white/5 text-white/50">
+          <span className="text-xs px-2.5 py-1 rounded-full bg-raised text-white/50">
             ₹{(flight.price * travelers).toLocaleString()} total
           </span>
         )}
@@ -152,7 +152,7 @@ const FlightCard = ({ flight, fromCity, toCity, date, travelers }) => {
           <ExternalLink className="h-3.5 w-3.5" /> GoIbibo
         </a>
         <a href={links.googleUrl} target="_blank" rel="noopener noreferrer"
-          className="flex items-center justify-center gap-1 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 rounded-xl text-xs font-medium transition-all">
+          className="flex items-center justify-center gap-1 py-2.5 bg-raised hover:bg-overlay border border-white/10 text-white/60 rounded-xl text-xs font-medium transition-all">
           <ExternalLink className="h-3.5 w-3.5" /> Google
         </a>
       </div>
@@ -168,7 +168,7 @@ const TrainCard = ({ train }) => {
     train.date
   );
   return (
-    <div className="bg-white/5 border border-white/20 rounded-2xl p-5 hover:border-white/40 hover:bg-white/10 transition-all shadow-lg hover:shadow-xl">
+    <div className="bg-raised border border-white/20 rounded-2xl p-5 hover:border-white/40 hover:bg-overlay transition-all shadow-lg hover:shadow-xl">
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1 min-w-0">
           <p className="text-white/40 text-xs mb-0.5">#{train.train_number} · {train.train_type}</p>
@@ -188,9 +188,9 @@ const TrainCard = ({ train }) => {
         </div>
         <div className="flex-1 flex flex-col items-center gap-1">
           <div className="flex items-center gap-2 w-full">
-            <div className="flex-1 h-px bg-white/10" />
+            <div className="flex-1 h-px bg-overlay" />
             <Train className="h-4 w-4 text-white/30" />
-            <div className="flex-1 h-px bg-white/10" />
+            <div className="flex-1 h-px bg-overlay" />
           </div>
           {train.duration && <p className="text-white/30 text-xs">{train.duration} hrs</p>}
         </div>
@@ -205,7 +205,7 @@ const TrainCard = ({ train }) => {
       {train.classes?.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-3">
           {train.classes.map((cls) => (
-            <span key={cls} className="text-xs px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/50">{cls}</span>
+            <span key={cls} className="text-xs px-2 py-0.5 rounded-full bg-raised border border-white/10 text-white/50">{cls}</span>
           ))}
         </div>
       )}
@@ -343,7 +343,7 @@ const Transportation = () => {
             <ResultsMeta count={flights.length} label="flight(s)" from={fromCity} to={toCity} date={startDate} />
             <div className="flex items-center gap-2 text-sm mt-3 sm:mt-0">
               <span className="text-white/50">Sort by:</span>
-              <select value={sortFlight} onChange={(e) => setSortFlight(e.target.value)} className="bg-white/10 border border-white/20 text-white rounded-lg px-3 py-1.5 outline-none focus:border-white/40">
+              <select value={sortFlight} onChange={(e) => setSortFlight(e.target.value)} className="bg-overlay border border-white/20 text-white rounded-lg px-3 py-1.5 outline-none focus:border-white/40">
                 <option value="price_asc" className="bg-gray-900">Price (Low to High)</option>
                 <option value="price_desc" className="bg-gray-900">Price (High to Low)</option>
                 <option value="duration" className="bg-gray-900">Duration (Fastest)</option>
@@ -372,7 +372,7 @@ const Transportation = () => {
             <ResultsMeta count={trains.length} label="train(s)" from={fromCity} to={toCity} date={startDate} />
             <div className="flex items-center gap-2 text-sm mt-3 sm:mt-0">
               <span className="text-white/50">Sort by:</span>
-              <select value={sortTrain} onChange={(e) => setSortTrain(e.target.value)} className="bg-white/10 border border-white/20 text-white rounded-lg px-3 py-1.5 outline-none focus:border-white/40">
+              <select value={sortTrain} onChange={(e) => setSortTrain(e.target.value)} className="bg-overlay border border-white/20 text-white rounded-lg px-3 py-1.5 outline-none focus:border-white/40">
                 <option value="departure_asc" className="bg-gray-900">Departure Time</option>
                 <option value="duration_asc" className="bg-gray-900">Duration (Fastest)</option>
               </select>
@@ -393,7 +393,7 @@ const Transportation = () => {
     if (activeTab === 'buses') {
       return (
         <div className="flex flex-col items-center max-w-2xl mx-auto text-center py-10">
-          <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-6 border border-white/10">
+          <div className="w-16 h-16 bg-raised rounded-2xl flex items-center justify-center mb-6 border border-white/10">
             <Bus className="h-8 w-8 text-white/40" />
           </div>
           <h3 className="text-white text-2xl font-bold mb-3">Book Your Bus</h3>
@@ -403,7 +403,7 @@ const Transportation = () => {
             on our trusted partner platforms below.
           </p>
 
-          <div className="w-full bg-white/5 border border-white/20 rounded-2xl p-6 hover:border-white/40 hover:bg-white/10 transition-all shadow-lg hover:shadow-xl">
+          <div className="w-full bg-raised border border-white/20 rounded-2xl p-6 hover:border-white/40 hover:bg-overlay transition-all shadow-lg hover:shadow-xl">
             <p className="text-white font-medium mb-5 text-left flex items-center gap-2">
               <ExternalLink className="h-4 w-4 text-white/50" />
               Search on Partner Sites
@@ -436,7 +436,7 @@ const Transportation = () => {
   };
 
   return (
-    <div className="bg-[#080808] min-h-screen" style={{ fontFamily: 'system-ui, sans-serif' }}>
+    <div className="bg-base min-h-screen" style={{ fontFamily: 'system-ui, sans-serif' }}>
       <Navbar />
       <div className="max-w-5xl mx-auto px-6 py-10">
         <div className="mb-8">
@@ -447,7 +447,7 @@ const Transportation = () => {
         {hasParams && <TripBar from={fromCity} to={toCity} start={startDate} end={endDate} travelers={travelers} />}
 
         {/* Mode Tabs */}
-        <div className="flex gap-2 mb-8 p-1 bg-white/5 border border-white/10 rounded-2xl w-fit">
+        <div className="flex gap-2 mb-8 p-1 bg-raised border border-white/10 rounded-2xl w-fit">
           {TABS.map(({ id, label, icon: Icon }) => (
             <button key={id} onClick={() => setActiveTab(id)}
               className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === id ? 'bg-white text-black' : 'text-white/50 hover:text-white'}`}>

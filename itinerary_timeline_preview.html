@@ -1,0 +1,365 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif}
+.root{background:#0D0F14;min-height:600px;padding:20px;border-radius:12px;color:#fff}
+.layout{display:flex;gap:24px;align-items:flex-start}
+.rail{width:48px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;position:sticky;top:20px}
+.rail-label{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.25);margin-bottom:10px}
+.dot-wrap{display:flex;flex-direction:column;align-items:center;gap:0}
+.connector{width:2px;height:22px;border-radius:2px;transition:background .3s}
+.day-dot{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;cursor:pointer;transition:all .2s;border:2px solid;flex-shrink:0}
+.main{flex:1;min-width:0}
+.action-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;margin-bottom:18px}
+.action-bar-left{display:flex;align-items:center;gap:8px;font-size:13px;color:rgba(255,255,255,.6);font-weight:500}
+.unsaved-badge{font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(251,191,36,.15);color:#FCD34D;display:flex;align-items:center;gap:4px}
+.btn-save{display:inline-flex;align-items:center;gap:6px;background:rgba(74,222,128,.15);border:1px solid rgba(74,222,128,.3);color:#4ADE80;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer}
+.btn-pdf{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.13);color:rgba(255,255,255,.65);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer}
+.btn-pdf:hover{background:rgba(255,255,255,.13);color:#fff}
+.day-card{border-radius:18px;overflow:hidden;margin-bottom:16px;transition:box-shadow .2s}
+.card-header{padding:18px 20px 14px;border-bottom-width:1px;border-bottom-style:solid}
+.day-meta{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;opacity:.8}
+.day-title{font-size:17px;font-weight:600;margin-bottom:5px;display:flex;align-items:center;gap:6px}
+.day-desc{font-size:12px;color:rgba(255,255,255,.5);font-style:italic}
+.badges{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.badge{font-size:11px;padding:3px 10px;border-radius:20px;display:inline-flex;align-items:center;gap:4px;border-width:1px;border-style:solid}
+.card-body{padding:0 20px 16px}
+.slot{display:flex;gap:14px;padding:14px 0;border-bottom-width:1px;border-bottom-style:solid}
+.slot:last-child{border-bottom:none;padding-bottom:4px}
+.slot-time{width:120px;flex-shrink:0}
+.time-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:7px;font-size:10px;font-weight:600}
+.slot-content{flex:1;min-width:0}
+.slot-activity{font-size:13px;line-height:1.5;margin-bottom:5px}
+.slot-tip{font-size:11px;padding:3px 8px;border-radius:5px;display:inline-block;color:rgba(255,255,255,.45)}
+.editable{cursor:text;display:inline-flex;align-items:center;gap:4px}
+.editable:hover .edit-icon{opacity:1!important}
+.edit-icon{opacity:0;transition:opacity .15s;flex-shrink:0}
+.add-slot{margin-top:12px;display:inline-flex;align-items:center;gap:6px;background:none;border:1px dashed;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:11px;transition:all .15s}
+.edit-input{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.25);border-radius:5px;color:#fff;padding:3px 7px;font-size:inherit;font-family:inherit;outline:none;width:100%}
+.save-cancel{display:flex;gap:3px;flex-shrink:0;margin-top:1px}
+.sc-btn{background:none;border:none;cursor:pointer;padding:2px}
+.pdf-overlay{display:none;position:absolute;inset:0;background:rgba(0,0,0,.5);border-radius:12px;align-items:center;justify-content:center;z-index:99}
+.pdf-modal{background:#1C2030;border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:24px;width:300px;text-align:center}
+</style>
+
+<div class="root" id="root">
+<h2 class="sr-only">Interactive itinerary timeline with editable fields and PDF export</h2>
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+  <div>
+    <p style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.3);margin-bottom:2px">AI-Generated Trip</p>
+    <p style="font-size:20px;font-weight:600">Chennai <span style="color:rgba(255,255,255,.3)">→</span> Hyderabad</p>
+  </div>
+  <p style="font-size:12px;color:rgba(255,255,255,.4)">3 days · 1 traveller · Flight · AC rooms</p>
+</div>
+
+<div class="layout">
+
+  <div class="rail" id="rail">
+    <p class="rail-label">Days</p>
+    <div class="dot-wrap" id="dot-wrap"></div>
+  </div>
+
+  <div class="main">
+    <div class="action-bar">
+      <div class="action-bar-left" id="action-label">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FCD34D" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        Your itinerary &nbsp;<span style="font-size:11px;color:rgba(255,255,255,.3)">Click any text to edit</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-save" id="btn-save" style="display:none" onclick="saveChanges()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          Save changes
+        </button>
+        <button class="btn-pdf" onclick="showPdfModal()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Save as PDF
+        </button>
+      </div>
+    </div>
+
+    <div id="cards"></div>
+  </div>
+</div>
+
+<div class="pdf-overlay" id="pdf-overlay">
+  <div class="pdf-modal">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" stroke-width="1.5" style="margin:0 auto 12px;display:block"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+    <p style="font-size:15px;font-weight:600;margin-bottom:6px">Save as PDF</p>
+    <p style="font-size:12px;color:rgba(255,255,255,.5);margin-bottom:16px">Your browser's print dialog will open. Select "Save as PDF" as the destination.</p>
+    <button onclick="doPrint()" style="width:100%;padding:10px;background:#4ADE80;color:#052e16;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px">Open print dialog</button>
+    <button onclick="closePdf()" style="width:100%;padding:8px;background:rgba(255,255,255,.07);color:rgba(255,255,255,.6);border:none;border-radius:8px;font-size:12px;cursor:pointer">Cancel</button>
+  </div>
+</div>
+</div>
+
+<script>
+const DAYS = [
+  {
+    day:1, date:'Jun 22, 2026', title:'City of Pearls', description:'Dive into the Nizami grandeur of the Old City.',
+    highlight:'🕌 Charminar at sunset',local_tip:'Auto-rickshaws quote double for tourists — use Rapido instead.',
+    estimated_cost:'₹1,800 / person',
+    palette:{bg:'rgba(109,40,217,.10)',border:'rgba(139,92,246,.30)',dot:'#8B5CF6',dotActive:'#A78BFA',timeLabelColor:'#C4B5FD',highlightBg:'rgba(139,92,246,.15)',tipBg:'rgba(109,40,217,.12)'},
+    schedule:[
+      {time:'Morning 9:00 AM',activity:'Visit Golconda Fort — a 400-year-old citadel with an impressive acoustics trick at the entrance gate',tip:'Arrive before 10 AM to beat the tour groups'},
+      {time:'Afternoon 1:00 PM',activity:'Lunch at a local dhaba followed by Charminar — the iconic 16th-century mosque and landmark',tip:'Irani chai at Nimrah Café is unmissable'},
+      {time:'Evening 6:00 PM',activity:'Dinner at a traditional Hyderabadi restaurant — try the dum biryani and double ka meetha for dessert',tip:'Paradise or Bawarchi — both legendary, book ahead on weekends'},
+    ]
+  },
+  {
+    day:2, date:'Jun 23, 2026', title:'Pearls & Palaces', description:'Delve into the history and architecture of the city.',
+    highlight:'🏛️ Chowmahalla Palace courtyard',local_tip:'The Laad Bazaar near Charminar has the best pearl jewellery at wholesale prices.',
+    estimated_cost:'₹2,200 / person',
+    palette:{bg:'rgba(194,65,12,.10)',border:'rgba(249,115,22,.30)',dot:'#F97316',dotActive:'#FB923C',timeLabelColor:'#FED7AA',highlightBg:'rgba(249,115,22,.15)',tipBg:'rgba(194,65,12,.12)'},
+    schedule:[
+      {time:'Morning 9:00 AM',activity:'Visit Chowmahalla Palace — stunning Indo-Saracenic architecture with a collection of royal carriages',tip:'Photography allowed everywhere; lighting is best in the courtyard at 10 AM'},
+      {time:'Afternoon 1:30 PM',activity:'Lunch in Banjara Hills followed by Salar Jung Museum — one of the largest one-man collections in the world',tip:'The Veiled Rebecca sculpture and the Musical Clock are must-sees'},
+      {time:'Evening 7:00 PM',activity:'Sunset at Hussain Sagar Lake followed by the light-and-sound show at Lumbini Park',tip:'The Buddha statue island boat ride is worth it if the lake level is high'},
+    ]
+  },
+  {
+    day:3, date:'Jun 24, 2026', title:'Spiritual & Modern', description:'Balance ancient spirituality with the city\'s tech energy.',
+    highlight:'🙏 Birla Mandir hilltop view',local_tip:'HITEC City cafés are open until midnight — great for remote work after sightseeing.',
+    estimated_cost:'₹2,300 / person',
+    palette:{bg:'rgba(8,145,178,.10)',border:'rgba(6,182,212,.30)',dot:'#06B6D4',dotActive:'#22D3EE',timeLabelColor:'#A5F3FC',highlightBg:'rgba(6,182,212,.15)',tipBg:'rgba(8,145,178,.12)'},
+    schedule:[
+      {time:'Morning 9:00 AM',activity:'Mecca Masjid — one of the largest mosques in India, built over 77 years using local granite',tip:'Dress modestly; free entry for all, guided tours available'},
+      {time:'Afternoon 12:30 PM',activity:'Lunch near Banjara Hills then Birla Mandir — white marble temple atop a rocky hill with panoramic city views',tip:'Walk barefoot on the cool marble; most peaceful on weekday afternoons'},
+      {time:'Evening 5:30 PM',activity:'Explore HITEC City and Cyber Towers for a glimpse of the "Cyberabad" boom, then farewell dinner at a rooftop restaurant',tip:'Try Ohri\'s or The Park for rooftop dining with views of the illuminated Hussain Sagar'},
+    ]
+  }
+];
+
+let days = JSON.parse(JSON.stringify(DAYS));
+let dirty = false;
+let activeDay = 0;
+let editing = null;
+
+function markDirty(){
+  if(!dirty){
+    dirty=true;
+    document.getElementById('btn-save').style.display='inline-flex';
+    document.getElementById('action-label').innerHTML=`
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FCD34D" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      Your itinerary &nbsp;<span style="font-size:11px;background:rgba(251,191,36,.15);color:#FCD34D;padding:2px 8px;border-radius:20px">unsaved changes</span>
+    `;
+  }
+}
+
+function saveChanges(){
+  dirty=false;
+  document.getElementById('btn-save').style.display='none';
+  document.getElementById('action-label').innerHTML=`
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+    <span style="color:#4ADE80">Saved!</span>
+  `;
+  setTimeout(()=>{
+    document.getElementById('action-label').innerHTML=`
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FCD34D" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      Your itinerary &nbsp;<span style="font-size:11px;color:rgba(255,255,255,.3)">Click any text to edit</span>
+    `;
+  },1800);
+}
+
+function showPdfModal(){ document.getElementById('pdf-overlay').style.display='flex'; }
+function closePdf(){ document.getElementById('pdf-overlay').style.display='none'; }
+function doPrint(){ closePdf(); setTimeout(()=>window.print(),300); }
+
+function renderRail(){
+  const wrap=document.getElementById('dot-wrap');
+  wrap.innerHTML='';
+  days.forEach((d,i)=>{
+    const p=d.palette;
+    const isActive=activeDay===i;
+    if(i>0){
+      const conn=document.createElement('div');
+      conn.className='connector';
+      conn.style.background=i<=activeDay?`linear-gradient(to bottom,${days[i-1].palette.dot},${p.dot})`:'rgba(255,255,255,.08)';
+      wrap.appendChild(conn);
+    }
+    const btn=document.createElement('button');
+    btn.className='day-dot';
+    btn.style.cssText=`width:${isActive?38:30}px;height:${isActive?38:30}px;background:${isActive?p.dot:'rgba(255,255,255,.06)'};border-color:${isActive?p.dot:p.border};color:${isActive?'#fff':p.dot};font-size:${isActive?13:11}px;box-shadow:${isActive?`0 0 0 4px ${p.dot}22`:'none'}`;
+    btn.textContent=d.day;
+    btn.onclick=()=>{ activeDay=i; renderRail(); document.querySelectorAll('.day-card')[i]?.scrollIntoView({behavior:'smooth',block:'start'}); };
+    wrap.appendChild(btn);
+  });
+}
+
+function makeEditable(text, onSave, fontSize, color, multiline){
+  const span=document.createElement('span');
+  span.className='editable';
+  span.style.color=color||'inherit';
+  span.style.fontSize=fontSize||'inherit';
+
+  const txt=document.createElement('span');
+  txt.textContent=text;
+
+  const icon=document.createElement('span');
+  icon.className='edit-icon';
+  icon.innerHTML=`<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:rgba(255,255,255,.35)"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+
+  span.appendChild(txt);
+  span.appendChild(icon);
+
+  span.onclick=(e)=>{
+    e.stopPropagation();
+    const row=document.createElement('span');
+    row.style.cssText='display:flex;align-items:flex-start;gap:4px;width:100%';
+
+    const inp=multiline?document.createElement('textarea'):document.createElement('input');
+    inp.className='edit-input';
+    inp.value=text;
+    if(multiline){inp.rows=2;inp.style.resize='vertical';}
+    else{inp.type='text';}
+
+    const sc=document.createElement('span');
+    sc.className='save-cancel';
+    sc.innerHTML=`
+      <button class="sc-btn" onclick="(function(){const v=this.parentNode.previousSibling.value.trim();if(v){(${onSave.toString()})(v);}}).call(this)" style="color:#4ADE80">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      </button>
+      <button class="sc-btn" style="color:#F87171" onclick="renderCards()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    `;
+
+    inp.onkeydown=(e)=>{
+      if(!multiline && e.key==='Enter'){e.preventDefault();const v=inp.value.trim();if(v){onSave(v);}}
+      if(e.key==='Escape') renderCards();
+    };
+
+    row.appendChild(inp);
+    row.appendChild(sc);
+    span.parentNode.replaceChild(row,span);
+    inp.focus();
+    inp.select();
+  };
+
+  return span;
+}
+
+function renderCards(){
+  const container=document.getElementById('cards');
+  container.innerHTML='';
+  days.forEach((day,di)=>{
+    const p=day.palette;
+    const card=document.createElement('div');
+    card.className='day-card';
+    card.style.cssText=`background:${p.bg};border:1px solid ${p.border}`;
+
+    const header=document.createElement('div');
+    header.className='card-header';
+    header.style.borderBottomColor=p.border;
+
+    const meta=document.createElement('p');
+    meta.className='day-meta';
+    meta.style.color=p.timeLabelColor;
+    meta.textContent=`Day ${day.day} · ${day.date}`;
+    header.appendChild(meta);
+
+    const titleRow=document.createElement('div');
+    titleRow.className='day-title';
+    titleRow.appendChild(makeEditable(day.title,(v)=>{days[di].title=v;markDirty();renderCards();},'17px','#fff',false));
+    header.appendChild(titleRow);
+
+    if(day.description){
+      const desc=document.createElement('p');
+      desc.className='day-desc';
+      desc.appendChild(makeEditable(day.description,(v)=>{days[di].description=v;markDirty();renderCards();},'12px','rgba(255,255,255,.5)',true));
+      header.appendChild(desc);
+    }
+
+    const badges=document.createElement('div');
+    badges.className='badges';
+    if(day.highlight){
+      const hb=document.createElement('span');
+      hb.className='badge';
+      hb.style.cssText=`background:${p.highlightBg};border-color:${p.border};color:${p.timeLabelColor}`;
+      hb.innerHTML=`<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
+      hb.appendChild(makeEditable(day.highlight,(v)=>{days[di].highlight=v;markDirty();renderCards();},'11px',p.timeLabelColor,false));
+      badges.appendChild(hb);
+    }
+    if(day.local_tip){
+      const tb=document.createElement('span');
+      tb.className='badge';
+      tb.style.cssText=`background:${p.tipBg};border-color:${p.border};color:rgba(255,255,255,.5)`;
+      tb.innerHTML=`<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>`;
+      tb.appendChild(makeEditable(day.local_tip,(v)=>{days[di].local_tip=v;markDirty();renderCards();},'11px','rgba(255,255,255,.5)',false));
+      badges.appendChild(tb);
+    }
+    if(day.estimated_cost){
+      const cb=document.createElement('span');
+      cb.className='badge';
+      cb.style.cssText=`background:${p.highlightBg};border-color:${p.border};color:${p.timeLabelColor};margin-left:auto`;
+      cb.appendChild(makeEditable(day.estimated_cost,(v)=>{days[di].estimated_cost=v;markDirty();renderCards();},'11px',p.timeLabelColor,false));
+      badges.appendChild(cb);
+    }
+    header.appendChild(badges);
+    card.appendChild(header);
+
+    const body=document.createElement('div');
+    body.className='card-body';
+
+    day.schedule.forEach((slot,si)=>{
+      const row=document.createElement('div');
+      row.className='slot';
+      const isLast=si===day.schedule.length-1;
+      row.style.borderBottomColor=isLast?'transparent':p.border.replace('.30','.10');
+
+      const timeCol=document.createElement('div');
+      timeCol.className='slot-time';
+      const pill=document.createElement('span');
+      pill.className='time-pill';
+      pill.style.cssText=`background:${p.highlightBg};color:${p.timeLabelColor}`;
+      pill.innerHTML=`<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
+      pill.appendChild(makeEditable(slot.time,(v)=>{days[di].schedule[si].time=v;markDirty();renderCards();},'10px',p.timeLabelColor,false));
+      timeCol.appendChild(pill);
+      row.appendChild(timeCol);
+
+      const content=document.createElement('div');
+      content.className='slot-content';
+      const act=document.createElement('p');
+      act.className='slot-activity';
+      act.style.color='rgba(255,255,255,.85)';
+      act.appendChild(makeEditable(slot.activity,(v)=>{days[di].schedule[si].activity=v;markDirty();renderCards();},'13px','rgba(255,255,255,.85)',true));
+      content.appendChild(act);
+
+      if(slot.tip){
+        const tip=document.createElement('p');
+        tip.className='slot-tip';
+        tip.style.background=p.tipBg;
+        tip.appendChild(makeEditable(slot.tip,(v)=>{days[di].schedule[si].tip=v;markDirty();renderCards();},'11px','rgba(255,255,255,.45)',false));
+        content.appendChild(tip);
+      }
+      row.appendChild(content);
+
+      if(day.schedule.length>1){
+        const del=document.createElement('button');
+        del.style.cssText='background:none;border:none;cursor:pointer;color:rgba(255,255,255,.18);padding:4px;flex-shrink:0;transition:color .15s;margin-top:14px';
+        del.innerHTML=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;
+        del.onmouseenter=()=>del.style.color='#F87171';
+        del.onmouseleave=()=>del.style.color='rgba(255,255,255,.18)';
+        del.onclick=()=>{ days[di].schedule.splice(si,1); markDirty(); renderCards(); };
+        row.appendChild(del);
+      }
+      body.appendChild(row);
+    });
+
+    const addBtn=document.createElement('button');
+    addBtn.className='add-slot';
+    addBtn.style.cssText=`border-color:${p.border};color:rgba(255,255,255,.35)`;
+    addBtn.innerHTML=`<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add activity slot`;
+    addBtn.onmouseenter=()=>{ addBtn.style.borderColor=p.dot; addBtn.style.color=p.timeLabelColor; };
+    addBtn.onmouseleave=()=>{ addBtn.style.borderColor=p.border; addBtn.style.color='rgba(255,255,255,.35)'; };
+    addBtn.onclick=()=>{ days[di].schedule.push({time:'Custom time',activity:'New activity',tip:''}); markDirty(); renderCards(); };
+    body.appendChild(addBtn);
+    card.appendChild(body);
+    container.appendChild(card);
+  });
+
+  renderRail();
+}
+
+renderCards();
+</script>

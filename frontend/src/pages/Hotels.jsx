@@ -49,7 +49,7 @@ const Navbar = ({ active }) => {
         <Link to="/dashboard" className={active === 'explore' ? 'text-white font-medium' : 'text-white/60 hover:text-white transition-colors'}>Explore</Link>
         <Link to="/transportation" className={active === 'transport' ? 'text-white font-medium' : 'text-white/60 hover:text-white transition-colors'}>Transportation</Link>
         <Link to="/hotels" className={active === 'hotels' ? 'text-white font-medium' : 'text-white/60 hover:text-white transition-colors'}>Hotels</Link>
-        <a href="#" className="text-white/60 hover:text-white transition-colors">AI Planner</a>
+        <Link to="/ai-planner" className="text-white/60 hover:text-white transition-colors">AI Planner</Link>
       </div>
       <button onClick={handleSignOut} className="text-sm text-black bg-white px-5 py-2 rounded-full font-medium hover:bg-white/90 transition-colors">Sign Out</button>
     </nav>
@@ -59,7 +59,7 @@ const Navbar = ({ active }) => {
 
 // ── Trip Summary Bar ─────────────────────────────────────
 const TripBar = ({ city, start, end, travelers }) => (
-  <div className="flex flex-wrap items-center gap-4 mb-8 p-4 bg-white/5 border border-white/10 rounded-2xl">
+  <div className="flex flex-wrap items-center gap-4 mb-8 p-4 bg-raised border border-white/10 rounded-2xl">
     <div className="flex items-center gap-2 text-white font-semibold">
       <Hotel className="h-4 w-4 text-white/40" />
       Hotels in <span className="capitalize">{city}</span>
@@ -95,7 +95,7 @@ const HotelCard = ({ hotel, city, startDate, endDate, travelers }) => {
   };
 
   return (
-    <div className="bg-white/5 border border-white/20 rounded-2xl p-5 hover:border-white/40 hover:bg-white/10 transition-all flex flex-col gap-4 shadow-lg hover:shadow-xl">
+    <div className="bg-raised border border-white/20 rounded-2xl p-5 hover:border-white/40 hover:bg-overlay transition-all flex flex-col gap-4 shadow-lg hover:shadow-xl">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
@@ -114,7 +114,7 @@ const HotelCard = ({ hotel, city, startDate, endDate, travelers }) => {
 
       {/* Stay summary */}
       <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-xs px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-white/60">
+        <span className="text-xs px-3 py-1.5 rounded-full bg-raised border border-white/10 text-white/60">
           {nights} night{nights > 1 ? 's' : ''}
         </span>
         <span className="text-xs px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 font-medium">
@@ -202,7 +202,7 @@ const Hotels = () => {
   const fallbackLinks = buildHotelLinks(toCity, startDate, endDate, travelers);
 
   return (
-    <div className="bg-[#080808] min-h-screen" style={{ fontFamily: 'system-ui, sans-serif' }}>
+    <div className="bg-base min-h-screen" style={{ fontFamily: 'system-ui, sans-serif' }}>
       <Navbar active="hotels" />
 
       <div className="max-w-5xl mx-auto px-6 py-10">
@@ -238,7 +238,7 @@ const Hotels = () => {
               </p>
               <div className="flex items-center gap-2 text-sm mt-3 sm:mt-0">
                 <span className="text-white/50">Sort by:</span>
-                <select value={sortOption} onChange={(e) => setSortOption(e.target.value)} className="bg-white/10 border border-white/20 text-white rounded-lg px-3 py-1.5 outline-none focus:border-white/40">
+                <select value={sortOption} onChange={(e) => setSortOption(e.target.value)} className="bg-overlay border border-white/20 text-white rounded-lg px-3 py-1.5 outline-none focus:border-white/40">
                   <option value="price_asc" className="bg-gray-900">Price (Low to High)</option>
                   <option value="price_desc" className="bg-gray-900">Price (High to Low)</option>
                   <option value="rating" className="bg-gray-900">Rating (Highest First)</option>

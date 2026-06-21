@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+@theme {
+  --color-base: #0D0F14;
+  --color-raised: #141720;
+  --color-overlay: #1C2030;
+}
+
 @layer utilities {
   .glassmorphism {
     @apply bg-white/10 backdrop-blur-md border border-white/20 shadow-xl rounded-2xl;

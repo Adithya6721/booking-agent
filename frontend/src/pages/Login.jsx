@@ -52,7 +52,7 @@ const Login = () => {
             </div>
             <input 
               type="email" 
-              className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all"
+              className="w-full pl-10 pr-4 py-3 bg-overlay border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all"
               placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -70,7 +70,7 @@ const Login = () => {
             </div>
             <input 
               type="password" 
-              className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all"
+              className="w-full pl-10 pr-4 py-3 bg-overlay border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -82,7 +82,7 @@ const Login = () => {
         {/* Login Button */}
         <button 
           type="submit" 
-          className="w-full py-3 px-4 bg-[#0a192f] hover:bg-[#112240] text-white rounded-xl font-medium transition-colors flex items-center justify-center group"
+          className="w-full py-3 px-4 bg-base hover:bg-[#112240] text-white rounded-xl font-medium transition-colors flex items-center justify-center group"
         >
           <span>Login</span>
           <LogIn className="ml-2 h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
